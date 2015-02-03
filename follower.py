@@ -9,10 +9,13 @@ import urlparse
 
 class WikipediaFollower():
 
-    def __init__(self):
+    def __init__(self, start=None):
         self.schema = "http://"
         self.wiki_prefix = self.schema + "en.wikipedia.org/"
-        self.start_link = self.wiki_prefix + "wiki/Special:Random"
+        if start is None:
+            self.start_link = self.wiki_prefix + "wiki/Special:Random"
+        else:
+            self.start_link = start
         self.stop_links = [self.wiki_prefix + "wiki/Philosophy"]
         self.visited_links = {}
 
@@ -63,8 +66,25 @@ class WikipediaFollower():
         # soup = soup.find("div", id="bodyContent")
         # remove italics
         [s.extract() for s in soup.find_all("i")]
+        # try paragraph tags, then list items, to simulate human user
+        next_url = ""
+        for tag_type in ["p", "li"]:
+            next_url = self.get_candidate_next_url(soup, tag_type)
+            if next_url != "":
+                self.crawl_recur(next_url)
+                break
+        if next_url == "":
+            print 'at dead end. current url:', url
+
+    def get_candidate_next_url(self, soup, tag_name):
+        """
+        Finds a candidate for the next url to crawl.
+        :param soup: the parsed HTML page
+        :param tag_name: the name of the tag type to search
+        :return: the url, or an empty string if none found
+        """
         next_link = ""
-        for p in soup.find_all(["p", "li"]):
+        for p in soup.find_all(tag_name):
             # parse each p, removing parentheses
             smaller_soup = BeautifulSoup(WikipediaFollower.remove_parens(repr(p)), "lxml")
             # select all links with titles
@@ -78,15 +98,13 @@ class WikipediaFollower():
                     next_link = urlparse.urljoin(self.wiki_prefix, next_link)
                 else:  # else we have switched wikipedia-wiktionary
                     self.wiki_prefix = next_link.rpartition('/wiki/')[0]
-                # and crawl if we haven't been there
+                # and crawl if we should
                 if self.should_visit_link(next_link):
-                    self.crawl_recur(next_link)
-                    break
+                    return next_link
                 else:
                     self.wiki_prefix = old_prefix
 
-        if next_link == "":
-            print 'at dead end. current url:', url
+        return next_link
 
     @staticmethod
     def remove_parens(text):
@@ -95,12 +113,13 @@ class WikipediaFollower():
         :param text: the HTML
         :return: the HTML, with removed parentheses stuff
         """
-        # only remove if not in a link tag
-        text = str(text) + ""
-        output = ""
         # go through text, delete characters if within parens
+        text = str(text) + ""  # ensure we have a valid string
+        output = ""
+        # tracks depth of nested parentheses
         in_parens = 0  # will be greater than zero if we're inside ()
-        in_link = 0  # will be greater than zero if we're inside <a> tag
+        # tracks depth of nested angular brackets
+        in_link = 0  # will be greater than zero if we're inside <a>
         for c in text:
             # if not in parens, check for link open/close
             if in_parens <= 0:
@@ -108,18 +127,18 @@ class WikipediaFollower():
                     in_link += 1
                 elif c == ">":
                     in_link -= 1
-            # if not in a link, check for paren openn/close
+            # if not in a link, check for paren open/close
             if in_link <= 0:
                 if c == "(":
                     in_parens += 1
                 # write output if we're not in parens
                 if in_parens <= 0:
                     output += c
-                else:  # if we're in parens, skip output.
+                else:  # else we are in parens, so skip
                     output += ''
                 if c == ")":
                     in_parens -= 1
-            else:  # in a link, write regardless
+            else:  # else we are in a link, write regardless
                 output += c
         return output
 
@@ -130,20 +149,21 @@ def print_help_quit(name):
     :param name: the name of the program
     :return:
     """
-    print name, '-s <start_link>'
+    print name, '[-s|--startlink] <start_link>'
+    print "(If a start link is unspecified, the program starts at a random page.)"
     sys.exit(2)
 
 
 if __name__ == "__main__":
     try:
-        options, args = getopt.getopt(sys.argv[1:], "hs:", ["help", "start_link="])
+        options, args = getopt.getopt(sys.argv[1:], "hs:", ["help", "startlink="])
         start_link = None
         for opt, arg in options:
             if opt in ("-h", "--help"):
                 print_help_quit(sys.argv[0])
-            elif opt in ("-s", "--start_link"):
+            elif opt in ("-s", "--startlink"):
                 start_link = arg
-        wf = WikipediaFollower()
+        wf = WikipediaFollower(start_link)
         wf.crawl()
     except getopt.GetoptError:
         print_help_quit(sys.argv[0])
