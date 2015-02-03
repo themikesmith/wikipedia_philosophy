@@ -54,7 +54,7 @@ class WikipediaFollower():
         print 'visiting link:', url
         self.visited_links[url] = 1  # mark visited
         if self.crawl_over(url):
-            print 'at philosophy!'
+            print 'finished!'
             return
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "lxml")
@@ -67,7 +67,7 @@ class WikipediaFollower():
         for p in soup.find_all(["p", "li"]):
             # parse each p, removing parentheses
             smaller_soup = BeautifulSoup(WikipediaFollower.remove_parens(repr(p)), "lxml")
-            # links = smaller_soup.find_all("a")
+            # select all links with titles
             links = [l for l in smaller_soup.find_all("a") if 'title' in l.attrs]
             if len(links) > 0:  # if we have found links
                 next_link = links[0]['href']
