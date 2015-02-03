@@ -36,6 +36,13 @@ class WikipediaFollower():
 
     @staticmethod
     def has_special_wiki_keyword(next_link):
+        """
+        Wikipedia urls sometimes have special keywords in their links.
+        Checks url format for similarity to http://en.wikipedia.org/wiki/File:...
+        or http://en.wikipedia.org/wiki/Help:...
+        :param next_link:
+        :return: true if meets that format requirement.
+        """
         return re.search("/wiki/.+?:", next_link) is not None
 
     def should_visit_link(self, next_link):
